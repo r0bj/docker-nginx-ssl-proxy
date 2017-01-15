@@ -1,0 +1,32 @@
+upstream backend {
+{{- range getvs "/upstream/service/*" }}
+    server {{ . }};
+{{- end }}
+}
+
+server {
+  listen 80;
+  server_name {{ getv "/server/name" "your-hostname" }};
+  return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name {{ getv "/server/name" "your-hostname" }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ getv "/server/name" "your-hostname" }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ getv "/server/name" "your-hostname" }}/privkey.pem;
+    ssl_session_cache shared:SSL:10m;
+    # disable unsupported ciphers https://http2.github.io/http2-spec/#BadCipherSuites
+    ssl_ciphers AESGCM:HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    location / {
+        proxy_pass http://backend;
+        proxy_redirect off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Authorization "";
+    }
+}
